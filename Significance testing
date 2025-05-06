@@ -1,0 +1,139 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Fri Apr 25 15:12:25 2025
+
+@author: Alex Bralsford
+"""
+
+# =============================================================================
+# Mixed-Effects Analysis of Long-Form DWI Data (FA) in Python
+# =============================================================================
+# This script:
+#  1. Loads long-format DWI/DTI data
+#  2. Cleans and categorises the key columns
+#  3. Filters to the FA metric
+#  4. Defines and fits a linear mixed-effects model
+#  5. Runs Wald χ² tests for each fixed effect
+#  6. Computes FDR‐controlled pairwise contrasts via EMMs
+#  7. Computes the Intraclass Correlation (ICC)
+#  8. Writes all results to an Excel file
+
+import pandas as pd
+import statsmodels.formula.api as smf
+import pingouin as pg
+from scipy.stats import chi2
+
+# ── 1. Load and preprocess ──────────────────────────────────────────────────
+df = pd.read_csv("updated_regional_DWI_eddy_long.csv")
+df = df.rename(columns={
+    "Mouse Name": "Mouse_ID",
+    "group":      "Group",
+    "time":       "Time",
+    "region":     "Region",
+    "value":      "Value",
+    "metric":     "Metric"
+})
+df = df[df["Metric"].str.upper() == "DWI_MEAN"].dropna(subset=["Group"]).copy()
+
+# ── 2. Clean & categorise 'Group' ─────────────────────────────────────────
+df["Group"] = (
+    df["Group"]
+      .str.strip()
+      .str.replace(r"\s+", "", regex=True)           # remove spaces
+      .str.replace("RTLOW", "RT_LOW", regex=False)   # standardise RTLOW spelling
+      .str.upper()                                   # convert to uppercase
+)
+desired_order = ["CONTROL", "ATM", "ATM+RT", "RT"]
+df["Group"] = df["Group"].astype("category") \
+                       .cat.reorder_categories(desired_order, ordered=False)
+
+# ── 3. Clean & categorise 'Time' ──────────────────────────────────────────
+df["Time"] = (
+    df["Time"]
+      .astype(str)
+      .str.strip()
+      .str.title()
+)
+df["Time"] = df["Time"].astype("category") \
+                     .cat.reorder_categories(
+                         ["Baseline", "Month 2", "Month 4", "Month 6"],
+                         ordered=True
+                     )
+
+# ── 4. Categorise 'Region' ────────────────────────────────────────────────
+df["Region"] = df["Region"].astype(str).str.strip().astype("category")
+
+# ── 5. Drop any rows with missing key variables ────────────────────────────
+df = df.dropna(subset=["Value", "Group", "Time", "Region", "Mouse_ID"])
+
+
+# ── 2. Fit the mixed‐effects model ───────────────────────────────────────────
+fixef     = "C(Group, Sum)*C(Time, Sum)*C(Region, Sum)"
+re_formula = "~C(Time)"
+vc         = {"mouse_region": "0 + C(Mouse_ID):C(Region)"}
+
+model  = smf.mixedlm(
+    formula    = f"Value ~ {fixef}",
+    data       = df,
+    groups     = "Mouse_ID",
+    re_formula = re_formula,
+    vc_formula = vc,
+    missing    = "drop"
+)
+result = model.fit(reml=True)
+
+# ── 3. Fixed effects summary DataFrame ──────────────────────────────────────
+fe_df = pd.DataFrame({
+    "Coef":   result.fe_params,
+    "StdErr": result.bse_fe,
+    "z-value":result.tvalues,
+    "P>|z|":  result.pvalues
+})
+
+# ── 4. Omnibus Wald χ² tests ─────────────────────────────────────────────────
+wald      = result.wald_test_terms(skip_single=True, scalar=True)
+wald_df   = wald.summary_frame().rename(columns=lambda s: s.strip())
+# normalize column names
+rename_map = {
+    "chi2":          "chi2",
+    "statistic":     "chi2",
+    "df constraint": "df",
+    "Pr > chi2":     "p_val",
+    "P>chi2":        "p_val"
+}
+wald_df = wald_df.rename(columns={k:v for k,v in rename_map.items() if k in wald_df})
+if {"chi2","df"}.issubset(wald_df.columns) and "p_val" not in wald_df:
+    wald_df["p_val"] = chi2.sf(wald_df["chi2"], wald_df["df"])
+wald_df = wald_df[[c for c in ["chi2","df","p_val"] if c in wald_df]]
+
+# ── 5. Pairwise contrasts via EMMs ──────────────────────────────────────────
+df["fitted"] = result.predict()
+posthoc = pg.pairwise_tests(
+    data    = df,
+    dv      = "fitted",
+    between = "Group",
+    within  = ["Time","Region"],
+    subject = "Mouse_ID",
+    padjust = "fdr_bh"
+).round(4)
+# keep all contrasts (or filter by reject=True)
+posthoc_df = posthoc.copy()
+
+# ── 6. Intraclass Correlation (ICC) ──────────────────────────────────────────
+var_mouse = result.cov_re.iloc[0,0]
+var_resid = result.scale
+icc       = var_mouse / (var_mouse + var_resid)
+icc_df    = pd.DataFrame({
+    "Var_Mouse":   [var_mouse],
+    "Var_Residual":[var_resid],
+    "ICC":         [icc]
+})
+
+# ── 7. Write to Excel ────────────────────────────────────────────────────────
+with pd.ExcelWriter("dwi_analysis_results.csv") as writer:
+    fe_df.to_excel(writer, sheet_name="MixedLM_FixedEffects")
+    icc_df.to_excel(writer, sheet_name="Variance_ICC", index=False)
+    wald_df.to_excel(writer, sheet_name="Wald_Chi2", index=True)
+    posthoc_df.to_excel(writer, sheet_name="Pairwise_Contrasts", index=False)
+
+print("All results written to 'dwi_analysis_results.csv'")
