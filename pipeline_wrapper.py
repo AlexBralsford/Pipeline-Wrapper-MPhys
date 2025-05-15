@@ -47,7 +47,7 @@ from dipy.align.metrics import CCMetric
 
 
 
-# External skull stripping function (assumed to be available)
+# External skull stripping function 
 from skull_strip import skull_strip
 
 ###############################################################################
@@ -158,7 +158,7 @@ def load_data(diffusion_path, T2_path, output_dir, logger):
 def load_method_file(method_file_path, logger):
     """
     Load the method.npy file to extract B-values and B-vectors.
-    Normalizes the bvecs so that each vector has unit length.
+    Normalises the bvecs so that each vector has unit length.
     """
     try:
         method = np.load(method_file_path, allow_pickle=True).item()
@@ -237,7 +237,7 @@ def perform_eddy_correction(diffusion_data, affine, base_output, logger, method_
       - Prepares input files (bvals, bvecs, acqparams, index) for eddy.
       - Executes the eddy command using the new b1000-based mask.
     
-    NOTE: bvals and bvecs are loaded using load_method_file, ensuring they are normalized.
+   
     """
     try:
         # Save the motion-corrected diffusion image as the starting point.
@@ -428,14 +428,14 @@ def run_bias_field_correction(input_dwi_file, diffusion_nifti, output_dir, logge
 def tensor_model_fit(diffusion_file, bvals, bvecs, affine, nifti_header, logger, suffix=""):
     """
     Fit the diffusion tensor model using DIPY's standard TensorModel.
-    Assumes that bvals and bvecs are pre-processed and normalized.
+    Assumes that bvals and bvecs are pre-processed and normalised.
     This version forces the data to float64 for numerical stability and
     ignores eddy-uncorrected data.
     Saves FA, MD, eigenvalues, and eigenvectors as NIfTI files with an appended suffix.
     
     Parameters:
       - diffusion_file: path to the diffusion dataset (bias-field corrected)
-      - bvals, bvecs: normalized b-values and b-vectors
+      - bvals, bvecs: normalised b-values and b-vectors
       - affine: affine transformation matrix to use in the output images
       - nifti_header: header from the original diffusion NIfTI image
       - logger: logging instance for progress reporting
