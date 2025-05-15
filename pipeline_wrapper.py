@@ -323,7 +323,7 @@ eddy --imain='{motion_file}' \\
 def bias_field_correction(diffusion_data, diffusion_nifti, b0_path, dwi_path, output_b0_corrected, output_dwi_corrected):
     """
     Perform bias field correction using ANTs' N4 algorithm.
-    This function implements the logic from your VSCode cell.
+
     """
     # Create reference image (average of the first 5 volumes)
     reference_image = np.mean(diffusion_data[..., :5], axis=-1)
