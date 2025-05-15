@@ -10,8 +10,6 @@ Created on Fri Apr  4 15:43:38 2025
 # -*- coding: utf-8 -*-
 """
 Automated pipeline wrapper for diffusion and T2 processing.
-This script wraps your VSCode cells into an automated, batch‐processing pipeline.
-It configures the environment, sets up logging, and iterates through multiple datasets.
 """
 
 import os
