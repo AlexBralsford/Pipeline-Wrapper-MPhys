@@ -403,7 +403,7 @@ def run_bias_field_correction(input_dwi_file, diffusion_nifti, output_dir, logge
         input_data = input_img.get_fdata()
         logger.info(f"Input diffusion data shape for bias correction{suffix}: {input_data.shape}")
         
-        # Run the bias field correction using your existing function.
+        
         bias_corrected_img = bias_field_correction(
             diffusion_data=input_data,
             diffusion_nifti=input_img,
